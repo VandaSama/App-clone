@@ -1,1 +1,123 @@
+name: Build Multi Profil FB
 
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GRADLE_VERSION: "7.6.4"
+  ANDROID_NDK_VERSION: "25.2.9519653"
+
+jobs:
+  build:
+    name: Build Android APK (ARM64 + ARMv7)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout aplikasi
+        uses: actions/checkout@v4
+
+      - name: Checkout source BlackBox
+        uses: actions/checkout@v4
+        with:
+          repository: chcdg/FBlackBox
+          ref: master
+          path: vendor/BlackBox
+          persist-credentials: false
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle tanpa gradle-wrapper.jar
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK, NDK, dan CMake
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-28" \
+            "platforms;android-30" \
+            "platforms;android-33" \
+            "build-tools;28.0.2" \
+            "build-tools;30.0.3" \
+            "build-tools;33.0.2" \
+            "cmake;3.22.1" \
+            "ndk;${ANDROID_NDK_VERSION}"
+
+      - name: Siapkan keystore untuk signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD_SECRET: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS_SECRET: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD_SECRET: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KS="$RUNNER_TEMP/multifb-release.jks"
+          if [[ -n "${KEYSTORE_BASE64:-}" ]]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$KS"
+            STORE_PASS="$KEYSTORE_PASSWORD_SECRET"
+            ALIAS="${KEY_ALIAS_SECRET:-multifb}"
+            KEY_PASS="${KEY_PASSWORD_SECRET:-$STORE_PASS}"
+          else
+            echo "No persistent signing secret found; creating a temporary CI key."
+            STORE_PASS="$(openssl rand -hex 18)"
+            ALIAS="multifb"
+            KEY_PASS="$STORE_PASS"
+            keytool -genkeypair -v \
+              -keystore "$KS" \
+              -storetype JKS \
+              -storepass "$STORE_PASS" \
+              -keypass "$KEY_PASS" \
+              -alias "$ALIAS" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Multi Profil FB, OU=Android, O=Personal, L=Jakarta, ST=DKI Jakarta, C=ID"
+          fi
+          echo "KEYSTORE_PATH=$KS" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+
+      - name: Build release APK untuk setiap ABI
+        run: gradle --no-daemon clean :app:assembleRelease --stacktrace
+
+      - name: Siapkan file APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find app/build/outputs/apk/release -type f -name '*.apk' -print -exec cp {} dist/ \;
+          cp vendor/BlackBox/LICENSE dist/BLACKBOX-APACHE-2.0-LICENSE.txt
+          ls -lh dist
+          test -n "$(find dist -maxdepth 1 -name '*.apk' -print -quit)"
+
+      - name: Upload APK sebagai artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-profil-fb-apk
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Buat GitHub Release dan lampirkan APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: multifb-${{ github.run_number }}
+          name: Multi Profil FB build ${{ github.run_number }}
+          generate_release_notes: true
+          files: dist/*
