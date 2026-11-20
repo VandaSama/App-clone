@@ -1,0 +1,43 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Hapus daftar permission sangat luas dari manifest demo BlackBox, lalu
+         deklarasikan hanya yang diperlukan untuk penggunaan dasar ini. -->
+    <uses-permission tools:node="removeAll" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <queries>
+        <package android:name="com.facebook.katana" />
+    </queries>
+
+    <application
+        android:name=".MultiProfileApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Multi Profil FB"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MultiProfilFB">
+
+        <activity
+            android:name=".ProfileShortcutActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.MultiProfilFB.Transparent" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".monitor.ProfileMonitorService"
+            android:exported="false" />
+    </application>
+</manifest>
