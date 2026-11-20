@@ -1,21 +1,17 @@
 
-name: Build Multi Profil FB
+name: Build Android APK (ARM64 + ARMv7)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: write
 
-env:
-  GRADLE_VERSION: "7.6.4"
-  ANDROID_NDK_VERSION: "25.2.9519653"
-
 jobs:
   build:
-    name: Build Android APK (ARM64 + ARMv7)
     runs-on: ubuntu-22.04
 
     steps:
@@ -39,26 +35,28 @@ jobs:
       - name: Setup Gradle tanpa gradle-wrapper.jar
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
-
-      - name: Setup Android SDK tanpa paket tools lama
-        shell: bash
-        run: |
-          set -euo pipefail
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
-          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
-          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort | tail -n 1)"
-          test -n "$SDKMANAGER"
-          echo "SDKMANAGER=$SDKMAN" >> "$GITHUB_ENV"
+          gradle-version: "7.6.4"
 
       - name: Install Android SDK, NDK, dan CMake
         shell: bash
         run: |
-          set -euo pipefail
-          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null
-          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
+          set -eo pipefail
+
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}"
+          echo "Android SDK: $SDK_ROOT"
+
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort | tail -n 1)"
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager tidak ditemukan"
+            exit 1
+          fi
+
+          echo "sdkmanager ditemukan: $SDKMAN"
+
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses || true
+
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" \
             "platform-tools" \
             "platforms;android-28" \
             "platforms;android-30" \
@@ -67,7 +65,7 @@ jobs:
             "build-tools;30.0.3" \
             "build-tools;33.0.2" \
             "cmake;3.22.1" \
-            "ndk;${ANDROID_NDK_VERSION}"
+            "ndk;25.2.9519653"
 
       - name: Siapkan keystore untuk signing
         shell: bash
@@ -78,17 +76,19 @@ jobs:
           KEY_PASSWORD_SECRET: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
+
           KS="$RUNNER_TEMP/multifb-release.jks"
+
           if [[ -n "${KEYSTORE_BASE64:-}" ]]; then
             echo "$KEYSTORE_BASE64" | base64 --decode > "$KS"
             STORE_PASS="$KEYSTORE_PASSWORD_SECRET"
             ALIAS="${KEY_ALIAS_SECRET:-multifb}"
             KEY_PASS="${KEY_PASSWORD_SECRET:-$STORE_PASS}"
           else
-            echo "Creating temporary CI key."
             STORE_PASS="$(openssl rand -hex 18)"
             ALIAS="multifb"
             KEY_PASS="$STORE_PASS"
+
             keytool -genkeypair -v \
               -keystore "$KS" \
               -storetype JKS \
@@ -100,33 +100,44 @@ jobs:
               -validity 10000 \
               -dname "CN=Multi Profil FB, OU=Android, O=Personal, L=Jakarta, ST=DKI Jakarta, C=ID"
           fi
+
           echo "KEYSTORE_PATH=$KS" >> "$GITHUB_ENV"
           echo "KEYSTORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
           echo "KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
 
-      - name: Build release APK untuk setiap ABI
+      - name: Build release APK
         run: gradle --no-daemon clean :app:assembleRelease --stacktrace
 
       - name: Siapkan file APK
         shell: bash
         run: |
           set -euo pipefail
+
           mkdir -p dist
-          find app/build/outputs/apk/release -type f -name '*.apk' -print -exec cp {} dist/ \;
-          cp vendor/BlackBox/LICENSE dist/BLACKBOX-APACHE-2.0-LICENSE.txt
+
+          find app/build/outputs/apk/release \
+            -type f -name '*.apk' -exec cp {} dist/ \;
+
+          if [ -d vendor/BlackBox ]; then
+            if [ -f vendor/BlackBox/LICENSE ]; then
+              cp vendor/BlackBox/LICENSE dist/BLACKBOX-LICENSE.txt
+            fi
+          fi
+
           ls -lh dist
+
           test -n "$(find dist -maxdepth 1 -name '*.apk' -print -quit)"
 
       - name: Upload APK sebagai artifact
         uses: actions/upload-artifact@v4
         with:
-          name: multi-profil-fb-apk
+          name: MultiProfilFB-APK
           path: dist/*
           if-no-files-found: error
           retention-days: 30
 
-      - name: Buat GitHub Release dan lampirkan APK
+      - name: Buat GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: multifb-${{ github.run_number }}
