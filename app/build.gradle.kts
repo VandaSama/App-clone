@@ -14,9 +14,7 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        ndk {
-            abiFilters += setOf("arm64-v8a", "armeabi-v7a")
-        }
+        
     }
 
     // CI menghasilkan dua APK terpisah agar ABI engine sesuai ABI Facebook.
