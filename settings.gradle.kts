@@ -11,6 +11,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        jcenter()
         maven("https://jitpack.io")
         // Fallback untuk beberapa dependency lama BlackBox yang dahulu dipublikasikan di JCenter.
         maven("https://jcenter.bintray.com")
