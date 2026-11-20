@@ -73,7 +73,7 @@ android {
         jvmTarget = "1.8"
     }
 
-    packaging {
+        packagingOptions {
         jniLibs {
             useLegacyPackaging = true
         }
