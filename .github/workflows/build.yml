@@ -1,3 +1,4 @@
+
 name: Build Multi Profil FB
 
 on:
@@ -16,6 +17,7 @@ jobs:
   build:
     name: Build Android APK (ARM64 + ARMv7)
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout aplikasi
         uses: actions/checkout@v4
@@ -39,14 +41,24 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK tanpa paket tools lama
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort | tail -n 1)"
+          test -n "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMAN" >> "$GITHUB_ENV"
 
       - name: Install Android SDK, NDK, dan CMake
         shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager \
+          set -euo pipefail
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
             "platform-tools" \
             "platforms;android-28" \
             "platforms;android-30" \
@@ -73,7 +85,7 @@ jobs:
             ALIAS="${KEY_ALIAS_SECRET:-multifb}"
             KEY_PASS="${KEY_PASSWORD_SECRET:-$STORE_PASS}"
           else
-            echo "No persistent signing secret found; creating a temporary CI key."
+            echo "Creating temporary CI key."
             STORE_PASS="$(openssl rand -hex 18)"
             ALIAS="multifb"
             KEY_PASS="$STORE_PASS"
