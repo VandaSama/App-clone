@@ -1,1 +1,6 @@
-
+<resources>
+    <color name="app_blue">#1877F2</color>
+    <color name="app_blue_dark">#0D5CC3</color>
+    <color name="app_background">#F5F7FB</color>
+    <color name="icon_background">#1877F2</color>
+</resources>
