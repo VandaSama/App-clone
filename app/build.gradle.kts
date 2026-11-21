@@ -76,6 +76,11 @@ android {
             useLegacyPackaging = true
         }
     }
+
+lint {
+    disable += "ExpiredTargetSdkVersion"
+}
+
 }
 
 dependencies {
@@ -101,6 +106,3 @@ configurations.configureEach {
     )
 }
 
-lint {
-    disable += "ExpiredTargetSdkVersion"
-}
