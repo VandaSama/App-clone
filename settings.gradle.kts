@@ -15,6 +15,9 @@ dependencyResolutionManagement {
         maven("https://jitpack.io")
         // Fallback untuk beberapa dependency lama BlackBox yang dahulu dipublikasikan di JCenter.
         maven("https://jcenter.bintray.com")
+        maven {
+            url = uri("https://maven.aliyun.com/repository/jcenter")
+        }
     }
 }
 
