@@ -93,3 +93,10 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
+
+configurations.configureEach {
+    resolutionStrategy.force(
+        "androidx.core:core:1.10.1",
+        "androidx.core:core-ktx:1.10.1"
+    )
+}
